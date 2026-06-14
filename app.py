@@ -16,7 +16,9 @@ import uuid
 # =========================================================
 
 app = FastAPI()
-app.mount("/static", StaticFiles(directory="."), name="static")
+@app.get("/")
+async def home():
+    return {"message": "Reelsnip API Running"}
 UPLOAD_FOLDER = "uploads"
 OUTPUT_FOLDER = "outputs"
 

@@ -4,4 +4,4 @@ app = FastAPI()
 
 @app.get("/")
 async def home():
-    return {"status": "working"}
+    return {"message": "Reelsnip API Running"}

@@ -3,4 +3,4 @@ services:
     name: reelsnip
     env: python
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn app:app -k uvicorn.workers.UvicornWorker
+    startCommand: uvicorn app:app --host 0.0.0.0 --port 10000

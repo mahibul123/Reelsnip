@@ -2,7 +2,7 @@ fastapi
 uvicorn
 gunicorn
 moviepy
-opencv-python
+opencv-python-headless
 ffmpeg-python
 python-multipart
 jinja2

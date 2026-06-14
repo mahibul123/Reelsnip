@@ -1,44 +1,20 @@
-
-from fastapi import FastAPI, UploadFile, File, Form
-from fastapi.responses import HTMLResponse, JSONResponse
-from fastapi.staticfiles import StaticFiles
-
-
+from fastapi import FastAPI
+from fastapi.responses import HTMLResponse
 import uvicorn
-import shutil
-import os
-import subprocess
-import math
-import uuid
-
-# =========================================================
-# APP CONFIG
-# =========================================================
 
 app = FastAPI()
-app.mount("/static", StaticFiles(directory="."), name="static")
-UPLOAD_FOLDER = "uploads"
-OUTPUT_FOLDER = "outputs"
-
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-os.makedirs(OUTPUT_FOLDER, exist_ok=True)
-
-app.mount("/outputs", StaticFiles(directory="outputs"), name="outputs")
-
-# =========================================================
-# HTML UI
-# =========================================================
 
 HTML = """
 
 <!DOCTYPE html>
 <html>
-
 <head>
 
-<title>Reelsnip.com</title>
+<title>Reelsnip Offline Video Processor</title>
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<script src="https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.6/dist/umd/ffmpeg.js"></script>
 
 <style>
 
@@ -46,11 +22,11 @@ HTML = """
 margin:0;
 padding:0;
 box-sizing:border-box;
+font-family:Arial;
 }
 
 body{
 background:#0f172a;
-font-family:Arial;
 color:white;
 overflow:hidden;
 }
@@ -61,7 +37,7 @@ height:100vh;
 }
 
 .sidebar{
-width:260px;
+width:280px;
 background:#111827;
 padding:20px;
 overflow-y:auto;
@@ -69,29 +45,29 @@ border-right:2px solid #1e293b;
 }
 
 .logo{
-font-size:32px;
+font-size:28px;
 font-weight:bold;
 margin-bottom:30px;
-color:#60a5fa;
+color:#3b82f6;
 }
 
 .sidebar h2{
-margin-bottom:20px;
 font-size:18px;
+margin-bottom:20px;
 }
 
 .tool-btn{
 width:100%;
 padding:15px;
 margin-bottom:12px;
-background:#1e293b;
 border:none;
+border-radius:15px;
+background:#1e293b;
 color:white;
-border-radius:14px;
 font-size:16px;
 cursor:pointer;
-text-align:left;
 transition:0.3s;
+text-align:left;
 }
 
 .tool-btn:hover{
@@ -100,153 +76,138 @@ background:#2563eb;
 
 .content{
 flex:1;
-overflow-y:auto;
 padding:25px;
+overflow-y:auto;
+}
+
+.title{
+font-size:48px;
+font-weight:bold;
+margin-bottom:25px;
+}
+
+.subtitle{
+font-size:18px;
+color:#60a5fa;
+margin-left:10px;
 }
 
 .card{
-background:#1e293b;
+background:#172554;
 padding:22px;
-border-radius:20px;
+border-radius:22px;
 margin-bottom:25px;
+}
+
+label{
+display:block;
+margin-bottom:10px;
+font-size:15px;
 }
 
 input,
 select{
 width:100%;
-padding:13px;
-margin-top:10px;
-margin-bottom:18px;
-border:none;
-border-radius:10px;
-font-size:15px;
-background:#0f172a;
-color:white;
-}
-
-button.process{
-width:100%;
-padding:15px;
-background:#2563eb;
-color:white;
+padding:14px;
 border:none;
 border-radius:12px;
-font-size:17px;
-cursor:pointer;
-font-weight:bold;
+background:#0f172a;
+color:white;
+font-size:15px;
+margin-bottom:18px;
 }
 
-button.process:hover{
+.range-box{
+margin-bottom:20px;
+}
+
+.range-label{
+margin-top:5px;
+font-size:13px;
+color:#cbd5e1;
+}
+
+input[type=range]{
+padding:0;
+}
+
+.process-btn{
+width:100%;
+padding:16px;
+background:#2563eb;
+border:none;
+border-radius:15px;
+color:white;
+font-size:18px;
+font-weight:bold;
+cursor:pointer;
+transition:0.3s;
+}
+
+.process-btn:hover{
 background:#1d4ed8;
 }
 
 video{
-width:120px;
-height:70px;
-object-fit:cover;
-margin-top:8px;
-border-radius:10px;
-background:black;
-display:block;
-}
-
-#preview{
-width:170px;
-height:100px;
+width:200px;
+border-radius:15px;
 margin-top:15px;
-}
-
-.output-card video{
-width:120px;
-height:70px;
+background:black;
 }
 
 .output-card{
-background:#111827;
-padding:12px;
-margin-top:15px;
-border-radius:15px;
 display:inline-block;
-width:150px;
+width:220px;
+background:#111827;
+padding:15px;
+margin:12px;
+border-radius:18px;
 vertical-align:top;
-margin-right:10px;
-text-align:center;
+}
+
+.output-card video,
+.output-card audio{
+width:100%;
+border-radius:12px;
 }
 
 .download-btn{
-display:inline-block;
-padding:9px 14px;
+display:block;
+text-align:center;
+margin-top:12px;
+padding:12px;
 background:#10b981;
-color:white;
+border-radius:12px;
 text-decoration:none;
-border-radius:10px;
-margin-top:10px;
+color:white;
 font-weight:bold;
-font-size:13px;
-}
-
-.slider-label{
-margin-top:-10px;
-margin-bottom:15px;
-font-size:13px;
-color:#cbd5e1;
 }
 
 .hidden{
 display:none;
 }
 
-.flex{
-display:flex;
-gap:15px;
-}
-
-.loader-box{
+.loader{
 display:none;
 margin-top:20px;
 padding:20px;
 background:#111827;
 border-radius:15px;
-width:260px;
-text-align:center;
 }
 
-.spinner{
-width:50px;
-height:50px;
-border:5px solid #334155;
-border-top:5px solid #60a5fa;
-border-radius:50%;
-animation:spin 1s linear infinite;
-margin:auto;
-margin-bottom:15px;
-}
-
-@keyframes spin{
-
-0%{
-transform:rotate(0deg);
-}
-
-100%{
-transform:rotate(360deg);
-}
-
-}
-
-.progress-bar{
+.progress{
 width:100%;
-height:12px;
+height:15px;
 background:#1e293b;
 border-radius:20px;
 overflow:hidden;
 margin-top:15px;
 }
 
-#progressFill{
-width:0%;
+.fill{
 height:100%;
-background:#2563eb;
+width:0%;
+background:#3b82f6;
 transition:0.3s;
 }
 
@@ -258,14 +219,10 @@ transition:0.3s;
 
 <div class="main">
 
-<!-- SIDEBAR -->
-
 <div class="sidebar">
 
 <div class="logo">
-
 Reelsnip.com
-
 </div>
 
 <h2>🎬 PRO TOOLS</h2>
@@ -308,76 +265,59 @@ Reelsnip.com
 
 </div>
 
-<!-- CONTENT -->
-
 <div class="content">
 
-<h1 style="
-display:flex;
-align-items:center;
-gap:12px;
-font-size:30px;
-margin-bottom:20px;
-">
-
+<div class="title">
 Ultimate Offline Video Processor
-
-<span style="
-font-size:16px;
-color:#60a5fa;
-font-weight:normal;
-">
-
+<span class="subtitle">
 Made by Reelsnip.com
-
 </span>
-
-</h1>
+</div>
 
 <input type="file" id="videoFile">
 
 <video id="preview" controls></video>
 
-<!-- LOADER -->
+<div class="loader" id="loader">
 
-<div id="loaderBox" class="loader-box">
+<h3 id="loaderText">
+Loading FFmpeg...
+</h3>
 
-<div class="spinner"></div>
-
-<div id="progressText">
-
-Processing Video... 0%
-
-</div>
-
-<div class="progress-bar">
-
-<div id="progressFill"></div>
-
+<div class="progress">
+<div class="fill" id="fill"></div>
 </div>
 
 </div>
 
-<!-- VIDEO CUTTER -->
+<!-- CUTTER -->
 
-<div id="cutter" class="card tool-panel">
+<div class="card tool-panel" id="cutter">
 
 <h2>✂ Video Cutter</h2>
+
+<div class="range-box">
 
 <label>Start Time</label>
 
 <input type="range" id="cutStart" min="0" max="300" value="0">
 
-<div class="slider-label" id="cutStartLabel">
+<div class="range-label" id="startLabel">
 0 sec
 </div>
+
+</div>
+
+<div class="range-box">
 
 <label>End Time</label>
 
 <input type="range" id="cutEnd" min="1" max="300" value="30">
 
-<div class="slider-label" id="cutEndLabel">
+<div class="range-label" id="endLabel">
 30 sec
+</div>
+
 </div>
 
 <select id="quality">
@@ -386,19 +326,18 @@ Processing Video... 0%
 <option value="720">HD 720p</option>
 <option value="480">NON HD 480p</option>
 <option value="360">LOW 360p</option>
-<option value="original">Original</option>
 
 </select>
 
-<button class="process" onclick="processVideo('cutter')">
+<button class="process-btn" onclick="processVideo('cutter')">
 🚀 Process Video
 </button>
 
 </div>
 
-<!-- MULTIPLE SHORTS -->
+<!-- SHORTS -->
 
-<div id="shorts" class="card tool-panel hidden">
+<div class="card tool-panel hidden" id="shorts">
 
 <h2>📱 Multiple Shorts</h2>
 
@@ -410,17 +349,7 @@ Processing Video... 0%
 
 </select>
 
-<select id="shortQuality">
-
-<option value="1080">Full HD 1080p</option>
-<option value="720" selected>HD 720p (Medium)</option>
-<option value="480">NON HD 480p</option>
-<option value="360">LOW 360p</option>
-<option value="original">Original</option>
-
-</select>
-
-<button class="process" onclick="processVideo('shorts')">
+<button class="process-btn" onclick="processVideo('shorts')">
 🚀 Create Shorts
 </button>
 
@@ -428,9 +357,9 @@ Processing Video... 0%
 
 <!-- COMPRESS -->
 
-<div id="compress" class="card tool-panel hidden">
+<div class="card tool-panel hidden" id="compress">
 
-<h2>⚡ Video Compress</h2>
+<h2>⚡ Compress Video</h2>
 
 <select id="compressLevel">
 
@@ -440,7 +369,7 @@ Processing Video... 0%
 
 </select>
 
-<button class="process" onclick="processVideo('compress')">
+<button class="process-btn" onclick="processVideo('compress')">
 🚀 Compress Video
 </button>
 
@@ -448,11 +377,11 @@ Processing Video... 0%
 
 <!-- REELS -->
 
-<div id="reels" class="card tool-panel hidden">
+<div class="card tool-panel hidden" id="reels">
 
 <h2>📲 Reels Resize 9:16</h2>
 
-<button class="process" onclick="processVideo('reels')">
+<button class="process-btn" onclick="processVideo('reels')">
 🚀 Convert Reels
 </button>
 
@@ -460,23 +389,23 @@ Processing Video... 0%
 
 <!-- YOUTUBE -->
 
-<div id="youtube" class="card tool-panel hidden">
+<div class="card tool-panel hidden" id="youtube">
 
 <h2>▶ YouTube Resize 16:9</h2>
 
-<button class="process" onclick="processVideo('youtube')">
+<button class="process-btn" onclick="processVideo('youtube')">
 🚀 Convert YouTube
 </button>
 
 </div>
 
-<!-- REMOVE AUDIO -->
+<!-- MUTE -->
 
-<div id="mute" class="card tool-panel hidden">
+<div class="card tool-panel hidden" id="mute">
 
 <h2>🔇 Remove Audio</h2>
 
-<button class="process" onclick="processVideo('mute')">
+<button class="process-btn" onclick="processVideo('mute')">
 🚀 Remove Audio
 </button>
 
@@ -484,11 +413,11 @@ Processing Video... 0%
 
 <!-- MP3 -->
 
-<div id="mp3" class="card tool-panel hidden">
+<div class="card tool-panel hidden" id="mp3">
 
 <h2>🎵 Extract MP3</h2>
 
-<button class="process" onclick="processVideo('mp3')">
+<button class="process-btn" onclick="processVideo('mp3')">
 🚀 Extract MP3
 </button>
 
@@ -496,11 +425,11 @@ Processing Video... 0%
 
 <!-- REVERSE -->
 
-<div id="reverse" class="card tool-panel hidden">
+<div class="card tool-panel hidden" id="reverse">
 
 <h2>🔄 Reverse Video</h2>
 
-<button class="process" onclick="processVideo('reverse')">
+<button class="process-btn" onclick="processVideo('reverse')">
 🚀 Reverse Video
 </button>
 
@@ -508,7 +437,7 @@ Processing Video... 0%
 
 <!-- SPEED -->
 
-<div id="speed" class="card tool-panel hidden">
+<div class="card tool-panel hidden" id="speed">
 
 <h2>🚀 Speed Control</h2>
 
@@ -520,13 +449,11 @@ Processing Video... 0%
 
 </select>
 
-<button class="process" onclick="processVideo('speed')">
+<button class="process-btn" onclick="processVideo('speed')">
 🚀 Change Speed
 </button>
 
 </div>
-
-<!-- RESULTS -->
 
 <div id="results"></div>
 
@@ -536,375 +463,280 @@ Processing Video... 0%
 
 <script>
 
+const { FFmpeg } = FFmpegWASM
+
+const ffmpeg = new FFmpeg()
+
+let loaded = false
+
+async function loadFFmpeg(){
+
+if(loaded) return
+
+document.getElementById("loader").style.display = "block"
+
+await ffmpeg.load({
+
+coreURL:"https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.6/dist/umd/ffmpeg-core.js"
+
+})
+
+loaded = true
+
+document.getElementById("loader").style.display = "none"
+
+}
+
+loadFFmpeg()
+
 const preview = document.getElementById("preview")
-const videoInput = document.getElementById("videoFile")
 
-videoInput.onchange = () => {
+const input = document.getElementById("videoFile")
 
-const file = videoInput.files[0]
+input.onchange = ()=>{
+
+const file = input.files[0]
 
 preview.src = URL.createObjectURL(file)
 
 }
 
-function showTool(toolId){
+function showTool(id){
 
-document.querySelectorAll(".tool-panel").forEach(panel=>{
+document.querySelectorAll(".tool-panel").forEach(el=>{
 
-panel.classList.add("hidden")
+el.classList.add("hidden")
 
 })
 
-document.getElementById(toolId).classList.remove("hidden")
+document.getElementById(id).classList.remove("hidden")
 
 }
 
 document.getElementById("cutStart").oninput = function(){
 
-document.getElementById("cutStartLabel").innerText =
+document.getElementById("startLabel").innerText =
 this.value + " sec"
 
 }
 
 document.getElementById("cutEnd").oninput = function(){
 
-document.getElementById("cutEndLabel").innerText =
+document.getElementById("endLabel").innerText =
 this.value + " sec"
 
 }
 
 async function processVideo(tool){
 
-const file = videoInput.files[0]
+const file = input.files[0]
 
 if(!file){
 
-alert("Select Video First")
+alert("Please Select Video")
 
 return
 
 }
 
-const loaderBox =
-document.getElementById("loaderBox")
+await loadFFmpeg()
 
-loaderBox.style.display = "block"
+const loader = document.getElementById("loader")
 
-const progressFill =
-document.getElementById("progressFill")
+const fill = document.getElementById("fill")
 
-const progressText =
-document.getElementById("progressText")
+const loaderText = document.getElementById("loaderText")
 
-let progress = 0
+loader.style.display = "block"
 
-const interval = setInterval(()=>{
+fill.style.width = "10%"
 
-if(progress < 90){
+loaderText.innerText = "Processing Video..."
 
-progress += 10
+const data = await fetchFile(file)
 
-progressFill.style.width =
-progress + "%"
+await ffmpeg.writeFile("input.mp4", data)
 
-progressText.innerText =
-"Processing Video... " + progress + "%"
+let output = "output.mp4"
+
+if(tool === "cutter"){
+
+const start = document.getElementById("cutStart").value
+const end = document.getElementById("cutEnd").value
+
+await ffmpeg.exec([
+"-i","input.mp4",
+"-ss",start,
+"-to",end,
+"-preset","ultrafast",
+output
+])
 
 }
 
-},500)
+else if(tool === "compress"){
 
-const formData = new FormData()
+const level =
+document.getElementById("compressLevel").value
 
-formData.append("video", file)
-formData.append("tool", tool)
+await ffmpeg.exec([
+"-i","input.mp4",
+"-vcodec","libx264",
+"-crf",level,
+output
+])
 
-formData.append("start",
-document.getElementById("cutStart")?.value || 0)
+}
 
-formData.append("end",
-document.getElementById("cutEnd")?.value || 30)
+else if(tool === "reels"){
 
-formData.append("quality",
-document.getElementById("quality")?.value || "720")
+await ffmpeg.exec([
+"-i","input.mp4",
+"-vf","scale=1080:1920",
+output
+])
 
-formData.append("short_duration",
-document.getElementById("shortDuration")?.value || "30")
+}
 
-formData.append("short_quality",
-document.getElementById("shortQuality")?.value || "720")
+else if(tool === "youtube"){
 
-formData.append("compress_level",
-document.getElementById("compressLevel")?.value || "30")
+await ffmpeg.exec([
+"-i","input.mp4",
+"-vf","scale=1920:1080",
+output
+])
 
-formData.append("speed",
-document.getElementById("speedValue")?.value || "1")
+}
 
-const response = await fetch("/process", {
+else if(tool === "mute"){
 
-method:"POST",
-body:formData
+await ffmpeg.exec([
+"-i","input.mp4",
+"-an",
+output
+])
 
-})
+}
 
-const data = await response.json()
+else if(tool === "reverse"){
 
-clearInterval(interval)
+await ffmpeg.exec([
+"-i","input.mp4",
+"-vf","reverse",
+"-af","areverse",
+output
+])
 
-progressFill.style.width = "100%"
+}
 
-progressText.innerText =
-"Processing Complete 100%"
+else if(tool === "speed"){
 
-setTimeout(()=>{
+const speed =
+document.getElementById("speedValue").value
 
-loaderBox.style.display = "none"
+const pts = 1 / speed
 
-},1000)
+await ffmpeg.exec([
+"-i","input.mp4",
+"-filter:v",`setpts=${pts}*PTS`,
+output
+])
 
-const results = document.getElementById("results")
+}
 
-results.innerHTML = ""
+else if(tool === "mp3"){
 
-data.files.forEach(file=>{
+output = "audio.mp3"
 
-results.innerHTML += `
+await ffmpeg.exec([
+"-i","input.mp4",
+"-q:a","0",
+"-map","a",
+output
+])
+
+}
+
+else if(tool === "shorts"){
+
+const duration =
+document.getElementById("shortDuration").value
+
+await ffmpeg.exec([
+"-i","input.mp4",
+"-t",duration,
+output
+])
+
+}
+
+fill.style.width = "100%"
+
+loaderText.innerText = "Completed"
+
+const resultBox =
+document.getElementById("results")
+
+const fileData =
+await ffmpeg.readFile(output)
+
+const blob = new Blob(
+[fileData.buffer],
+{
+type:
+output.endsWith(".mp3")
+? "audio/mp3"
+: "video/mp4"
+}
+)
+
+const url = URL.createObjectURL(blob)
+
+resultBox.innerHTML = `
 
 <div class="output-card">
 
-<h4>${file.name}</h4>
+<h3>Processed File</h3>
 
-${file.url.endsWith(".mp3")
-? `<audio controls src="${file.url}"></audio>`
-: `<video controls src="${file.url}"></video>`}
-
-<br>
+${
+output.endsWith(".mp3")
+?
+`<audio controls src="${url}"></audio>`
+:
+`<video controls src="${url}"></video>`
+}
 
 <a class="download-btn"
-href="${file.url}" download>
-
+href="${url}"
+download="${output}">
 ⬇ Download
-
 </a>
 
 </div>
 
 `
 
-})
+setTimeout(()=>{
+
+loader.style.display = "none"
+
+fill.style.width = "0%"
+
+},1500)
 
 }
 
 </script>
 
 </body>
-
 </html>
 
 """
-
-# =========================================================
-# HOME
-# =========================================================
 
 @app.get("/", response_class=HTMLResponse)
 async def home():
     return HTML
 
-# =========================================================
-# PROCESS VIDEO
-# =========================================================
-
-@app.post("/process")
-async def process_video(
-    video: UploadFile = File(...),
-    tool: str = Form(...),
-    start: int = Form(0),
-    end: int = Form(30),
-    quality: str = Form("720"),
-    short_duration: int = Form(30),
-    short_quality: str = Form("720"),
-    compress_level: int = Form(30),
-    speed: float = Form(1)
-):
-
-    uid = str(uuid.uuid4())
-
-    input_path = f"{UPLOAD_FOLDER}/{uid}_{video.filename}"
-
-    with open(input_path, "wb") as buffer:
-        shutil.copyfileobj(video.file, buffer)
-
-    output_files = []
-
-    def add_output(name):
-        output_files.append({
-            "name": name,
-            "url": f"/outputs/{name}"
-        })
-
-    # VIDEO CUTTER
-
-    if tool == "cutter":
-
-        output_name = f"{uid}_cut.mp4"
-
-        subprocess.run([
-            "ffmpeg","-i",input_path,
-            "-ss",str(start),
-            "-to",str(end),
-            "-preset","ultrafast",
-            f"{OUTPUT_FOLDER}/{output_name}",
-            "-y"
-        ])
-
-        add_output(output_name)
-
-    # MULTIPLE SHORTS
-
-    elif tool == "shorts":
-
-        total_duration = 180
-
-        parts = math.ceil(
-            total_duration / short_duration
-        )
-
-        for i in range(parts):
-
-            ss = i * short_duration
-
-            output_name = f"{uid}_short_{i+1}.mp4"
-
-            subprocess.run([
-                "ffmpeg","-i",input_path,
-                "-ss",str(ss),
-                "-t",str(short_duration),
-                "-preset","ultrafast",
-                f"{OUTPUT_FOLDER}/{output_name}",
-                "-y"
-            ])
-
-            add_output(output_name)
-
-    # VIDEO COMPRESS
-
-    elif tool == "compress":
-
-        output_name = f"{uid}_compress.mp4"
-
-        subprocess.run([
-            "ffmpeg","-i",input_path,
-            "-vcodec","libx264",
-            "-crf",str(compress_level),
-            f"{OUTPUT_FOLDER}/{output_name}",
-            "-y"
-        ])
-
-        add_output(output_name)
-
-    # REELS
-
-    elif tool == "reels":
-
-        output_name = f"{uid}_reels.mp4"
-
-        subprocess.run([
-            "ffmpeg","-i",input_path,
-            "-vf","scale=1080:1920",
-            f"{OUTPUT_FOLDER}/{output_name}",
-            "-y"
-        ])
-
-        add_output(output_name)
-
-    # YOUTUBE
-
-    elif tool == "youtube":
-
-        output_name = f"{uid}_youtube.mp4"
-
-        subprocess.run([
-            "ffmpeg","-i",input_path,
-            "-vf","scale=1920:1080",
-            f"{OUTPUT_FOLDER}/{output_name}",
-            "-y"
-        ])
-
-        add_output(output_name)
-
-    # REMOVE AUDIO
-
-    elif tool == "mute":
-
-        output_name = f"{uid}_mute.mp4"
-
-        subprocess.run([
-            "ffmpeg","-i",input_path,
-            "-an",
-            f"{OUTPUT_FOLDER}/{output_name}",
-            "-y"
-        ])
-
-        add_output(output_name)
-
-    # MP3
-
-    elif tool == "mp3":
-
-        output_name = f"{uid}.mp3"
-
-        subprocess.run([
-            "ffmpeg","-i",input_path,
-            "-q:a","0",
-            "-map","a",
-            f"{OUTPUT_FOLDER}/{output_name}",
-            "-y"
-        ])
-
-        add_output(output_name)
-
-    # REVERSE
-
-    elif tool == "reverse":
-
-        output_name = f"{uid}_reverse.mp4"
-
-        subprocess.run([
-            "ffmpeg","-i",input_path,
-            "-vf","reverse",
-            "-af","areverse",
-            f"{OUTPUT_FOLDER}/{output_name}",
-            "-y"
-        ])
-
-        add_output(output_name)
-
-    # SPEED
-
-    elif tool == "speed":
-
-        output_name = f"{uid}_speed.mp4"
-
-        pts = 1 / speed
-
-        subprocess.run([
-            "ffmpeg","-i",input_path,
-            "-filter:v",f"setpts={pts}*PTS",
-            f"{OUTPUT_FOLDER}/{output_name}",
-            "-y"
-        ])
-
-        add_output(output_name)
-
-    return JSONResponse({
-        "files": output_files
-    })
-
-# =========================================================
-# RUN APP
-# =========================================================
-
 if __name__ == "__main__":
 
-    uvicorn.run(app, host="127.0.0.1", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=8000)

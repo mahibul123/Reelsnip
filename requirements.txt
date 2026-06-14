@@ -1,3 +1,10 @@
 fastapi
 uvicorn
+gunicorn
+moviepy
+opencv-python
+ffmpeg-python
+python-multipart
+jinja2
+aiofiles
 

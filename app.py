@@ -1,4 +1,3 @@
-
 from fastapi import FastAPI, UploadFile, File, Form
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -150,9 +149,12 @@ display:block;
 }
 
 #preview{
-width:220px;
-height:130px;
+width:500px;
+height:280px;
 margin-top:15px;
+border-radius:15px;
+background:black;
+object-fit:cover;
 }
 
 .output-card video{
@@ -312,6 +314,8 @@ Ultimate Offline Video Processor
 
 </h1>
 
+<input type="file" id="videoFile" hidden>
+
 <label for="videoFile" style="
 display:inline-block;
 padding:14px 20px;
@@ -324,8 +328,6 @@ margin-bottom:15px;
 ">
 📁 Upload File
 </label>
-
-<input type="file" id="videoFile" hidden>
 
 <video id="preview" controls></video>
 
@@ -383,6 +385,7 @@ Elapsed Time: 0 sec
 <option value="720">HD 720p</option>
 <option value="480">NON HD 480p</option>
 <option value="360">LOW 360p</option>
+<option value="original">Original</option>
 
 </select>
 
@@ -412,7 +415,105 @@ Elapsed Time: 0 sec
 
 </div>
 
-<!-- RESULTS -->
+<!-- COMPRESS -->
+
+<div id="compress" class="card tool-panel hidden">
+
+<h2>⚡ Video Compress</h2>
+
+<select id="compressLevel">
+
+<option value="23">Low Compression</option>
+<option value="30">Medium Compression</option>
+<option value="38">High Compression</option>
+
+</select>
+
+<button class="process" onclick="processVideo('compress')">
+🚀 Compress Video
+</button>
+
+</div>
+
+<!-- REELS -->
+
+<div id="reels" class="card tool-panel hidden">
+
+<h2>📲 Reels Resize 9:16</h2>
+
+<button class="process" onclick="processVideo('reels')">
+🚀 Convert Reels
+</button>
+
+</div>
+
+<!-- YOUTUBE -->
+
+<div id="youtube" class="card tool-panel hidden">
+
+<h2>▶ YouTube Resize 16:9</h2>
+
+<button class="process" onclick="processVideo('youtube')">
+🚀 Convert YouTube
+</button>
+
+</div>
+
+<!-- MUTE -->
+
+<div id="mute" class="card tool-panel hidden">
+
+<h2>🔇 Remove Audio</h2>
+
+<button class="process" onclick="processVideo('mute')">
+🚀 Remove Audio
+</button>
+
+</div>
+
+<!-- MP3 -->
+
+<div id="mp3" class="card tool-panel hidden">
+
+<h2>🎵 Extract MP3</h2>
+
+<button class="process" onclick="processVideo('mp3')">
+🚀 Extract MP3
+</button>
+
+</div>
+
+<!-- REVERSE -->
+
+<div id="reverse" class="card tool-panel hidden">
+
+<h2>🔄 Reverse Video</h2>
+
+<button class="process" onclick="processVideo('reverse')">
+🚀 Reverse Video
+</button>
+
+</div>
+
+<!-- SPEED -->
+
+<div id="speed" class="card tool-panel hidden">
+
+<h2>🚀 Speed Control</h2>
+
+<select id="speedValue">
+
+<option value="0.5">0.5x Slow</option>
+<option value="1">1x Normal</option>
+<option value="2">2x Fast</option>
+
+</select>
+
+<button class="process" onclick="processVideo('speed')">
+🚀 Change Speed
+</button>
+
+</div>
 
 <div id="results"></div>
 
@@ -524,8 +625,17 @@ document.getElementById("cutStart")?.value || 0)
 formData.append("end",
 document.getElementById("cutEnd")?.value || 30)
 
+formData.append("quality",
+document.getElementById("quality")?.value || "720")
+
 formData.append("short_duration",
 document.getElementById("shortDuration")?.value || "30")
+
+formData.append("compress_level",
+document.getElementById("compressLevel")?.value || "30")
+
+formData.append("speed",
+document.getElementById("speedValue")?.value || "1")
 
 const response = await fetch("/process", {
 
@@ -565,7 +675,9 @@ results.innerHTML += `
 
 <h4>${file.name}</h4>
 
-<video controls src="${file.url}"></video>
+${file.url.endsWith(".mp3")
+? `<audio controls src="${file.url}"></audio>`
+: `<video controls src="${file.url}"></video>`}
 
 <br>
 
@@ -610,7 +722,10 @@ async def process_video(
     tool: str = Form(...),
     start: int = Form(0),
     end: int = Form(30),
-    short_duration: int = Form(30)
+    quality: str = Form("720"),
+    short_duration: int = Form(30),
+    compress_level: int = Form(30),
+    speed: float = Form(1)
 ):
 
     uid = str(uuid.uuid4())
@@ -632,7 +747,7 @@ async def process_video(
 
     if tool == "cutter":
 
-        output_name = f"{uid}_cut.mp4"
+        output_name = "cut_video.mp4"
 
         subprocess.run([
             "ffmpeg",
@@ -674,7 +789,7 @@ async def process_video(
 
             ss = i * short_duration
 
-            output_name = f"{uid}_short_{i+1}.mp4"
+            output_name = f"short{i+1}.mp4"
 
             subprocess.run([
                 "ffmpeg",
@@ -687,6 +802,127 @@ async def process_video(
             ])
 
             add_output(output_name)
+
+    # COMPRESS
+
+    elif tool == "compress":
+
+        output_name = "compressed.mp4"
+
+        subprocess.run([
+            "ffmpeg",
+            "-i", input_path,
+            "-vcodec", "libx264",
+            "-preset", "ultrafast",
+            "-crf", str(compress_level),
+            f"{OUTPUT_FOLDER}/{output_name}",
+            "-y"
+        ])
+
+        add_output(output_name)
+
+    # REELS
+
+    elif tool == "reels":
+
+        output_name = "reels.mp4"
+
+        subprocess.run([
+            "ffmpeg",
+            "-i", input_path,
+            "-vf", "scale=1080:1920",
+            "-preset", "ultrafast",
+            f"{OUTPUT_FOLDER}/{output_name}",
+            "-y"
+        ])
+
+        add_output(output_name)
+
+    # YOUTUBE
+
+    elif tool == "youtube":
+
+        output_name = "youtube.mp4"
+
+        subprocess.run([
+            "ffmpeg",
+            "-i", input_path,
+            "-vf", "scale=1920:1080",
+            "-preset", "ultrafast",
+            f"{OUTPUT_FOLDER}/{output_name}",
+            "-y"
+        ])
+
+        add_output(output_name)
+
+    # MUTE
+
+    elif tool == "mute":
+
+        output_name = "mute.mp4"
+
+        subprocess.run([
+            "ffmpeg",
+            "-i", input_path,
+            "-an",
+            f"{OUTPUT_FOLDER}/{output_name}",
+            "-y"
+        ])
+
+        add_output(output_name)
+
+    # MP3
+
+    elif tool == "mp3":
+
+        output_name = "audio.mp3"
+
+        subprocess.run([
+            "ffmpeg",
+            "-i", input_path,
+            "-q:a", "0",
+            "-map", "a",
+            f"{OUTPUT_FOLDER}/{output_name}",
+            "-y"
+        ])
+
+        add_output(output_name)
+
+    # REVERSE
+
+    elif tool == "reverse":
+
+        output_name = "reverse.mp4"
+
+        subprocess.run([
+            "ffmpeg",
+            "-i", input_path,
+            "-vf", "reverse",
+            "-af", "areverse",
+            f"{OUTPUT_FOLDER}/{output_name}",
+            "-y"
+        ])
+
+        add_output(output_name)
+
+    # SPEED
+
+    elif tool == "speed":
+
+        output_name = "speed.mp4"
+
+        pts = 1 / speed
+
+        subprocess.run([
+            "ffmpeg",
+            "-i", input_path,
+            "-filter:v", f"setpts={pts}*PTS",
+            "-preset", "ultrafast",
+            f"{OUTPUT_FOLDER}/{output_name}",
+            "-y"
+        ])
+
+        add_output(output_name)
 
     return JSONResponse({
         "files": output_files
